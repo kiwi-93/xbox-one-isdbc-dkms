@@ -10,7 +10,7 @@
 static int mn88472_get_tune_settings(struct dvb_frontend *fe,
 				     struct dvb_frontend_tune_settings *s)
 {
-	s->min_delay_ms = 1000;
+	s->min_delay_ms = 1500;
 	return 0;
 }
 
@@ -55,6 +55,7 @@ static int mn88472_read_status(struct dvb_frontend *fe, enum fe_status *status)
 			*status = 0;
 		break;
 	case SYS_DVBC_ANNEX_A:
+	case SYS_DVBC_ANNEX_C:
 		ret = regmap_read(dev->regmap[1], 0x84, &utmp);
 		if (ret)
 			goto err;
@@ -144,7 +145,8 @@ static int mn88472_read_status(struct dvb_frontend *fe, enum fe_status *status)
 		c->cnr.stat[0].svalue = stmp;
 		c->cnr.stat[0].scale = FE_SCALE_DECIBEL;
 	} else if (*status & FE_HAS_VITERBI &&
-		   c->delivery_system == SYS_DVBC_ANNEX_A) {
+		   (c->delivery_system == SYS_DVBC_ANNEX_A ||
+		    c->delivery_system == SYS_DVBC_ANNEX_C)) {
 		/* DVB-C CNR */
 		ret = regmap_bulk_read(dev->regmap[1], 0xa1, buf, 4);
 		if (ret)
@@ -234,6 +236,7 @@ static int mn88472_set_frontend(struct dvb_frontend *fe)
 		reg_bank0_d6_val = 0x46;
 		break;
 	case SYS_DVBC_ANNEX_A:
+	case SYS_DVBC_ANNEX_C:
 		delivery_system_val = 0x04;
 		reg_bank0_b4_val = 0x00;
 		reg_bank0_cd_val = 0x17;
@@ -271,6 +274,7 @@ static int mn88472_set_frontend(struct dvb_frontend *fe)
 		}
 		break;
 	case SYS_DVBC_ANNEX_A:
+	case SYS_DVBC_ANNEX_C:
 		bandwidth_vals_ptr = NULL;
 		bandwidth_val = 0x00;
 		break;
@@ -375,6 +379,7 @@ static int mn88472_set_frontend(struct dvb_frontend *fe)
 			goto err;
 		break;
 	case SYS_DVBC_ANNEX_A:
+	case SYS_DVBC_ANNEX_C:
 		break;
 	default:
 		break;
@@ -527,7 +532,7 @@ err:
 }
 
 static const struct dvb_frontend_ops mn88472_ops = {
-	.delsys = {SYS_DVBT, SYS_DVBT2, SYS_DVBC_ANNEX_A},
+	.delsys = {SYS_DVBT, SYS_DVBT2, SYS_DVBC_ANNEX_A, SYS_DVBC_ANNEX_C},
 	.info = {
 		.name = "Panasonic MN88472",
 		.symbol_rate_min = 1000000,
