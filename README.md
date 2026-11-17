@@ -22,10 +22,8 @@ Xbox One Digital TV Tuner は以下のチップセットで構成されており
 1. チューナードライバ（`tda18250.c`）
    - DVB-C 規格上、ロールオフ 0.15、シンボルレート 5.274 MS/s の計算帯域が `6,065,100 Hz` となり、標準ドライバの 6MHz 帯域判定閾値 `<= 6000000` を超えて 8MHz フィルタ（`DVBC_8`）が誤って選択され、隣接チャネルの混信を受ける。
    - IF フィルタ設定テーブル `delsys_params[DVBC_6]` の中心周波数が 6MHz 用の `3950 kHz` ではなく誤った周波数になっている。
-   - AGC（自動利得制御）の閾値が過大入力によりサチュレーションを起こす。
 2. 復調ドライバ（`mn88472.c`）
    - 日本の CATV 伝送規格である `SYS_DVBC_ANNEX_C` の Delivery System 定義が欠落している。
-   - 復調引き込み待ち時間（`min_delay_ms`）が短く、キャリアロック前にタイムアウトする。
 
 本リポジトリは上記の問題を修正したドライバモジュール（`tda18250` および `mn88472`）を DKMS パッケージとして提供します。
 
@@ -124,10 +122,10 @@ docker compose run --rm tuner-agent --tune /dev/dvb/adapter0/frontend0 QC18
 ```text
 /dev/dvb/adapter0/frontend0 を開きました
 --- QC18  141000000 Hz ISDB-C
-    同期 691 ms
+    同期 687 ms
     DVB-C Annex C  変調は自動 (QAM_AUTO)  5274 kbaud  受けた周波数 141000000 Hz
     ISDB-C: ロックしました
-    C/N 32.4 dB
+    C/N 32.7 dB
     同期バイト 100.0%  連続性の飛び 0 回  transport_error_indicator 0 個
 ```
 
@@ -174,7 +172,7 @@ sudo modprobe dvb_usb_dib0700
 
 Linux 6.8 の upstream コードとの差分を確認するには、以下のコマンドを実行します。
 ```bash
-git diff v6.8-upstream..v1.0.0 -- tda18250.c mn88472.c
+git diff v6.8-upstream..main -- tda18250.c mn88472.c
 ```
 
 ---
