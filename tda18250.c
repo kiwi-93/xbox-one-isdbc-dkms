@@ -260,8 +260,11 @@ static int tda18250_set_agc(struct dvb_frontend *fe)
 	if (ret)
 		goto err;
 
-	/* Keep R5A_H3H5 disabled for ISDB-C / CATV reception */
-	ret = regmap_write(dev->regmap, R5A_H3H5, 0x00);
+	utmp = ((c->frequency < 100000000) &&
+			((c->delivery_system == SYS_DVBC_ANNEX_A) ||
+			(c->delivery_system == SYS_DVBC_ANNEX_C)) &&
+			(c->bandwidth_hz == 6000000)) ? 0x80 : 0x00;
+	ret = regmap_write(dev->regmap, R5A_H3H5, utmp);
 	if (ret)
 		goto err;
 
@@ -273,8 +276,14 @@ static int tda18250_set_agc(struct dvb_frontend *fe)
 		utmp = 4;
 		break;
 	default: /* DVB-C/QAM */
-		/* Use non-overloading AGC1 threshold across all CATV bandwidths */
-		utmp = (c->frequency < 100000000) ? 2 : 3;
+		switch (c->bandwidth_hz) {
+		case 6000000:
+			utmp = (c->frequency < 800000000) ? 6 : 4;
+			break;
+		default: /* 7.935 and 8 MHz */
+			utmp = (c->frequency < 100000000) ? 2 : 3;
+			break;
+		}
 		break;
 	}
 
@@ -291,9 +300,24 @@ static int tda18250_set_agc(struct dvb_frontend *fe)
 		utmp2 = (c->frequency < 320000000) ? 22 : 18;
 		break;
 	default: /* DVB-C/QAM */
-		/* Avoid 6 MHz mixer/IF AGC2 overload on full-spectrum CATV */
-		utmp = (c->frequency < 320000000) ? 16 : 18;
-		utmp2 = (c->frequency < 320000000) ? 18 : 20;
+		switch (c->bandwidth_hz) {
+		case 6000000:
+			if (c->frequency < 600000000) {
+				utmp = 18;
+				utmp2 = 22;
+			} else if (c->frequency < 800000000) {
+				utmp = 16;
+				utmp2 = 20;
+			} else {
+				utmp = 14;
+				utmp2 = 16;
+			}
+			break;
+		default: /* 7.935 and 8 MHz */
+			utmp = (c->frequency < 320000000) ? 16 : 18;
+			utmp2 = (c->frequency < 320000000) ? 18 : 20;
+			break;
+		}
 		break;
 	}
 	ret = regmap_write_bits(dev->regmap, R58_AGC2_UP1, 0x1f, utmp2+8);
@@ -353,8 +377,12 @@ static int tda18250_set_agc(struct dvb_frontend *fe)
 			utmp = (c->frequency < 320000000) ? 0x04 : 0x02;
 		break;
 	default: /* DVB-C/QAM */
-		utmp = ((c->frequency > 320000000) &&
-			(c->frequency < 600000000)) ? 0x02 : 0x04;
+		if (c->bandwidth_hz == 6000000)
+			utmp = ((c->frequency > 172544000) &&
+				(c->frequency < 320000000)) ? 0x04 : 0x02;
+		else /* 7.935 and 8 MHz */
+			utmp = ((c->frequency > 320000000) &&
+				(c->frequency < 600000000)) ? 0x02 : 0x04;
 		break;
 	}
 	ret = regmap_write_bits(dev->regmap, R20_IR_MIX, 0x06, utmp);
@@ -767,7 +795,7 @@ static int tda18250_probe(struct i2c_client *client)
 	dev->if_dvbt_6 = cfg->if_dvbt_6;
 	dev->if_dvbt_7 = cfg->if_dvbt_7;
 	dev->if_dvbt_8 = cfg->if_dvbt_8;
-	dev->if_dvbc_6 = 3950;
+	dev->if_dvbc_6 = cfg->if_dvbc_6;
 	dev->if_dvbc_8 = cfg->if_dvbc_8;
 	dev->if_atsc = cfg->if_atsc;
 
