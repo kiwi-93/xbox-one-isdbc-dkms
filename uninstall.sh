@@ -2,7 +2,7 @@
 set -e
 
 MODULE="xbox-one-isdbc"
-VERSION="1.0.0"
+VERSION="1.0.1"
 SRC_DIR="/usr/src/${MODULE}-${VERSION}"
 
 if [ "$(id -u)" -ne 0 ]; then

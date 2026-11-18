@@ -86,12 +86,12 @@ sudo ./install.sh
 ### 手動でのインストール
 ```bash
 # 1. ソースを /usr/src に配置
-sudo cp -r . /usr/src/xbox-one-isdbc-1.0.0
+sudo cp -r . /usr/src/xbox-one-isdbc-1.0.1
 
 # 2. DKMS 登録とビルド・インストール
-sudo dkms add -m xbox-one-isdbc -v 1.0.0
-sudo dkms build -m xbox-one-isdbc -v 1.0.0
-sudo dkms install -m xbox-one-isdbc -v 1.0.0
+sudo dkms add -m xbox-one-isdbc -v 1.0.1
+sudo dkms build -m xbox-one-isdbc -v 1.0.1
+sudo dkms install -m xbox-one-isdbc -v 1.0.1
 
 # 3. ドライバのリロード
 sudo modprobe -r dvb_usb_dib0700 mn88472 tda18250 2>/dev/null || true
@@ -101,7 +101,7 @@ sudo modprobe dvb_usb_dib0700
 ステータスを確認し、`installed` と表示されれば完了です。
 ```bash
 $ dkms status -m xbox-one-isdbc
-xbox-one-isdbc/1.0.0, 6.8.0-149-generic, x86_64: installed
+xbox-one-isdbc/1.0.1, 6.8.0-149-generic, x86_64: installed
 ```
 
 ---
@@ -174,8 +174,8 @@ sudo ./uninstall.sh
 
 ### 手動でのアンインストール
 ```bash
-sudo dkms remove -m xbox-one-isdbc -v 1.0.0 --all
-sudo rm -rf /usr/src/xbox-one-isdbc-1.0.0
+sudo dkms remove -m xbox-one-isdbc -v 1.0.1 --all
+sudo rm -rf /usr/src/xbox-one-isdbc-1.0.1
 sudo modprobe -r dvb_usb_dib0700 mn88472 tda18250 2>/dev/null || true
 sudo modprobe dvb_usb_dib0700
 ```
