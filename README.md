@@ -2,17 +2,17 @@
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
 [![DKMS](https://img.shields.io/badge/DKMS-enabled-brightgreen.svg)]()
-[![Kernel](https://img.shields.io/badge/Linux%20Kernel-6.8%2B-orange.svg)]()
+[![Kernel](https://img.shields.io/badge/Linux%20Kernel-6.8-orange.svg)]()
 
 Microsoft Xbox One Digital TV Tuner（`045e:02d5`）で日本のケーブルテレビ ISDB-C（トランスモジュレーション方式、64QAM・256QAM、5.274 MS/s）を受信できるようにするための DKMS カーネルモジュールおよびパッチセットです。
 
-DKMS driver and patch set for enabling ISDB-C (Japanese 6 MHz CATV, 5.274 MS/s, 64QAM/256QAM) reception on the Microsoft Xbox One Digital TV Tuner (`045e:02d5`) under Linux (Kernel 6.8+).
+DKMS driver and patch set for enabling ISDB-C (Japanese 6 MHz CATV, 5.274 MS/s, 64QAM/256QAM) reception on the Microsoft Xbox One Digital TV Tuner (`045e:02d5`) under Linux (verified on Kernel 6.8).
 
 ---
 
 ## 概要
 
-Xbox One Digital TV Tuner は以下のチップセットで構成されており、ハードウェアとしては DVB-T/T2/C（Annex A/B/C）に対応しています。
+Xbox One Digital TV Tuner は以下のチップセットで構成されており、ハードウェアとしては DVB-T/T2/C（Annex A/C）に対応しています。
 - USB ブリッジ: DiBcom DiB0700
 - 復調 IC (Demodulator): Panasonic MN88472
 - シリコンチューナー: NXP TDA18250
@@ -21,19 +21,22 @@ Xbox One Digital TV Tuner は以下のチップセットで構成されており
 
 1. チューナードライバ（`tda18250.c`）
    - DVB-C 規格上、ロールオフ 0.15、シンボルレート 5.274 MS/s の計算帯域が `6,065,100 Hz` となり、標準ドライバの 6MHz 帯域判定閾値 `<= 6000000` を超えて 8MHz フィルタ（`DVBC_8`）が誤って選択され、隣接チャネルの混信を受ける。
-   - IF フィルタ設定テーブル `delsys_params[DVBC_6]` の中心周波数が 6MHz 用の `3950 kHz` ではなく誤った周波数になっている。
+   - 6MHz 用の設定テーブル `delsys_params[DVBC_6]` の IF フィルタ設定、および選局時の IF 中心周波数（標準では `dev->if_dvbc_6` を参照）が 6MHz 用の `3950 kHz` に合っていない。
 2. 復調ドライバ（`mn88472.c`）
    - 日本の CATV 伝送規格である `SYS_DVBC_ANNEX_C` の Delivery System 定義が欠落している。
 
 本リポジトリは上記の問題を修正したドライバモジュール（`tda18250` および `mn88472`）を DKMS パッケージとして提供します。
 
+> [!NOTE]
+> 本パッケージは汎用カーネルモジュール `tda18250` / `mn88472` を置き換えるため、同一システムに接続された同じ IC を搭載する他の DVB チューナーにも変更が適用されます。
+
 ---
 
 ## 特徴
 
-- ISDB-C 受信対応: 64QAM / 256QAM、5.274 MS/s、6MHz CATV チャンネルにおいて 0.7 秒以下でキャリアロックします。
+- ISDB-C 受信対応: 64QAM / 256QAM、5.274 MS/s、6MHz CATV チャンネルにおいて、実測約 0.6〜0.7 秒でキャリアロックすることを確認しています。
 - DKMS 対応: カーネルのアップデート（`apt upgrade` など）後も自動的にモジュールが再構築・再インストールされ、継続して利用できます。
-- 録画・視聴環境への対応: [denpa](https://github.com/danything/denpa) による CATV チューナーの自動認識・視聴・録画、`dvbv5-zap` / `dvbv5-scan`、`Tvheadend`、`Mirakurun` などの環境に対応します。
+- 録画・視聴環境への対応: [denpa](https://github.com/danything/denpa) および `dvbv5-zap` での実機動作を確認しています。標準 Linux DVB API 互換のため、`Tvheadend` や `Mirakurun` などの環境でも利用できます（個別環境での検証は未実施）。
 
 ---
 
@@ -113,10 +116,16 @@ ls -la /dev/dvb/adapter0/
 ```
 
 ### 2. denpa でのテスト
-denpa の `tuner-agent` を使い、チャンネルの選局をテストできます。
+`denpa` のディレクトリで `tuner-agent` を使い、チャンネルの選局をテストできます。稼働中の `tuner-agent` がチューナーを使用している場合は、事前に停止してから実行し、完了後に再開してください。
 ```bash
+# 稼働中の tuner-agent を停止
+docker compose stop tuner-agent
+
 # 例: QC18 (141.000 MHz) を選局
 docker compose run --rm tuner-agent --tune /dev/dvb/adapter0/frontend0 QC18
+
+# テスト後にサービスを再開
+docker compose up -d
 ```
 成功時の出力例
 ```text
@@ -130,17 +139,27 @@ docker compose run --rm tuner-agent --tune /dev/dvb/adapter0/frontend0 QC18
 ```
 
 ### 3. dvbv5-zap でのテスト
+`DVBC/ANNEX_A`（5.274 MS/s 時）と `DVBC/ANNEX_C` の両方を選局できます。
 ```bash
 cat << 'EOF' > isdb_c_test.conf
-[QC18]
+[QC18_ANNEX_A]
 	DELIVERY_SYSTEM = DVBC/ANNEX_A
+	FREQUENCY = 141000000
+	SYMBOL_RATE = 5274000
+	MODULATION = QAM/64
+	INVERSION = AUTO
+
+[QC18_ANNEX_C]
+	DELIVERY_SYSTEM = DVBC/ANNEX_C
 	FREQUENCY = 141000000
 	SYMBOL_RATE = 5274000
 	MODULATION = QAM/64
 	INVERSION = AUTO
 EOF
 
-dvbv5-zap -c isdb_c_test.conf -m QC18 -v
+dvbv5-zap -c isdb_c_test.conf -m QC18_ANNEX_A -v
+# または
+dvbv5-zap -c isdb_c_test.conf -m QC18_ANNEX_C -v
 ```
 
 ---
@@ -166,8 +185,8 @@ sudo modprobe dvb_usb_dib0700
 ## 修正パッチ
 
 `patches/` ディレクトリにパッチファイルを格納しています。
-- `patches/0001-media-tda18250-fix-6MHz-DVB-C-IF-filter-IF-center-an.patch`
-- `patches/0002-media-mn88472-add-SYS_DVBC_ANNEX_C-support-and-incre.patch`
+- `patches/0001-media-tda18250-fix-6MHz-DVB-C-IF-filter-and-IF-center.patch`
+- `patches/0002-media-mn88472-add-SYS_DVBC_ANNEX_C-support.patch`
 - `patches/combined-isdb-c.patch` (全差分統合パッチ)
 
 Linux 6.8 の upstream コードとの差分を確認するには、以下のコマンドを実行します。

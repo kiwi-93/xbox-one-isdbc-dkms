@@ -30,9 +30,11 @@ if [ ! -f /lib/firmware/dvb-demod-mn88472-02.fw ]; then
     curl -fsSL -o /lib/firmware/dvb-demod-mn88472-02.fw \
         "https://raw.githubusercontent.com/LibreELEC/dvb-firmware/master/firmware/dvb-demod-mn88472-02.fw" || FW_OK=false
 fi
-if [ "$FW_OK" = true ]; then
-    echo "Firmware files present in /lib/firmware/."
+if [ "$FW_OK" != true ]; then
+    echo "Error: Failed to download required firmware files to /lib/firmware/." >&2
+    exit 1
 fi
+echo "Firmware files present in /lib/firmware/."
 
 echo "=== 3. Staging module source to ${SRC_DIR} ==="
 mkdir -p "${SRC_DIR}"
@@ -46,9 +48,15 @@ dkms build -m "${MODULE}" -v "${VERSION}"
 dkms install -m "${MODULE}" -v "${VERSION}"
 
 echo "=== 5. Reloading kernel drivers ==="
-if lsmod | grep -q dvb_usb_dib0700; then
-    modprobe -r dvb_usb_dib0700 mn88472 tda18250 2>/dev/null || true
-fi
+for mod in dvb_usb_dib0700 mn88472 tda18250; do
+    if lsmod | grep -q "^${mod}[[:space:]]"; then
+        if ! modprobe -r "$mod"; then
+            echo "Error: Failed to unload kernel module '$mod' (tuner may be in use)." >&2
+            echo "Stop any service using the tuner (e.g. denpa tuner-agent) or reboot to apply the new driver." >&2
+            exit 1
+        fi
+    fi
+done
 modprobe dvb_usb_dib0700
 
 echo "=== 6. Verification ==="

@@ -18,9 +18,15 @@ if [ -d "${SRC_DIR}" ]; then
 fi
 
 echo "=== 2. Reloading stock kernel drivers ==="
-if lsmod | grep -q dvb_usb_dib0700; then
-    modprobe -r dvb_usb_dib0700 mn88472 tda18250 2>/dev/null || true
-fi
+for mod in dvb_usb_dib0700 mn88472 tda18250; do
+    if lsmod | grep -q "^${mod}[[:space:]]"; then
+        if ! modprobe -r "$mod"; then
+            echo "Error: Failed to unload kernel module '$mod' (tuner may be in use)." >&2
+            echo "Stop any service using the tuner (e.g. denpa tuner-agent) or reboot to restore the stock driver." >&2
+            exit 1
+        fi
+    fi
+done
 modprobe dvb_usb_dib0700
 
 echo "=== Uninstallation complete ==="
